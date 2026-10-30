@@ -1,0 +1,1167 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Examen Infantil Interactivo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f0fdf4; touch-action: manipulation; }
+        .hidden-view { display: none !important; }
+        .canvas-container { position: relative; width: 100%; max-width: 600px; height: 200px; background: white; border: 2px dashed #4ade80; border-radius: 12px; overflow: hidden; }
+        .canvas-lines { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; background: repeating-linear-gradient(transparent, transparent 39px, #cbd5e1 39px, #cbd5e1 40px); }
+        canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; cursor: crosshair; }
+        .draggable { cursor: grab; user-select: none; touch-action: none; }
+        .draggable:active { cursor: grabbing; }
+        .dropzone { min-height: 50px; border: 2px dashed #94a3b8; border-radius: 8px; display: flex; align-items: center; justify-content: center; background: #f8fafc; flex-wrap: wrap; gap: 4px; padding: 4px;}
+        .dropzone.active { border-color: #3b82f6; background: #eff6ff; }
+        .selected-item { box-shadow: 0 0 0 4px #fbbf24; transform: scale(1.05); }
+        .svg-icon { width: 80px; height: 80px; }
+        .marble { width: 30px; height: 30px; border-radius: 50%; display: inline-block; box-shadow: inset -5px -5px 10px rgba(0,0,0,0.3); margin: 2px; }
+        .marble-blue { background: radial-gradient(circle at 10px 10px, #60a5fa, #2563eb); }
+        .marble-red { background: radial-gradient(circle at 10px 10px, #f87171, #dc2626); }
+    </style>
+</head>
+<body class="text-slate-800">
+
+    <!-- App Container -->
+    <div id="app" class="min-h-screen flex flex-col max-w-4xl mx-auto p-4 relative pb-20">
+        
+        <!-- Header -->
+        <header class="flex justify-between items-center bg-white p-4 rounded-2xl shadow-sm mb-6 border-b-4 border-green-400">
+            <h1 class="text-2xl font-bold text-green-600"><i class="fas fa-star text-yellow-400 mr-2"></i> Mi Examen</h1>
+            <div id="header-controls">
+                <button onclick="showView('admin-login-view')" class="text-sm bg-slate-200 hover:bg-slate-300 px-3 py-1 rounded-full text-slate-700 font-bold transition">Admin</button>
+            </div>
+        </header>
+
+        <!-- Loading View -->
+        <div id="loading-view" class="flex-1 flex flex-col items-center justify-center">
+            <i class="fas fa-spinner fa-spin text-5xl text-green-500 mb-4"></i>
+            <p class="text-xl font-bold text-slate-500">Cargando...</p>
+        </div>
+
+        <!-- Student Login View -->
+        <div id="login-view" class="view hidden-view flex-1 flex flex-col items-center justify-center">
+            <div class="bg-white p-8 rounded-3xl shadow-xl border-4 border-blue-200 w-full max-w-md text-center">
+                <h2 class="text-3xl font-bold text-blue-600 mb-6">¡Hola! ¿Quién eres?</h2>
+                <select id="student-select" class="w-full text-xl p-4 rounded-xl border-2 border-blue-100 mb-4 focus:outline-none focus:border-blue-400 bg-slate-50 text-center">
+                    <option value="">Selecciona tu nombre</option>
+                </select>
+                <input type="password" id="student-password" placeholder="Tu contraseña" class="w-full text-xl p-4 rounded-xl border-2 border-blue-100 mb-6 focus:outline-none focus:border-blue-400 text-center">
+                <button onclick="loginStudent()" class="w-full bg-green-500 hover:bg-green-600 text-white text-2xl font-bold py-4 rounded-2xl shadow-lg transform transition active:scale-95">¡Entrar!</button>
+                <p id="login-error" class="text-red-500 mt-4 font-bold hidden"></p>
+            </div>
+        </div>
+
+        <!-- Admin Login View -->
+        <div id="admin-login-view" class="view hidden-view flex-1 flex flex-col items-center justify-center">
+            <div class="bg-white p-8 rounded-3xl shadow-xl border-4 border-slate-200 w-full max-w-md text-center">
+                <h2 class="text-2xl font-bold text-slate-700 mb-6">Acceso Administrador</h2>
+                <input type="password" id="admin-password" placeholder="Contraseña de admin" class="w-full text-lg p-3 rounded-xl border-2 border-slate-200 mb-6 focus:outline-none focus:border-blue-400 text-center">
+                <div class="flex gap-4">
+                    <button onclick="showView('login-view')" class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-3 rounded-xl transition">Cancelar</button>
+                    <button onclick="loginAdmin()" class="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 rounded-xl shadow-lg transition">Ingresar</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Admin Dashboard View -->
+        <div id="admin-dashboard-view" class="view hidden-view flex-1 flex flex-col">
+            <div class="bg-white p-6 rounded-2xl shadow-sm mb-6 border-2 border-blue-100 flex justify-between items-center flex-wrap gap-4">
+                <h2 class="text-2xl font-bold text-blue-600">Panel de Control</h2>
+                <div class="space-x-2 flex flex-wrap gap-2">
+                    <label class="bg-purple-500 text-white px-4 py-2 rounded-lg font-bold hover:bg-purple-600 cursor-pointer shadow-sm transition">
+                        <i class="fas fa-file-import mr-2"></i>Importar CSV
+                        <input type="file" id="csv-file" accept=".csv" class="hidden" onchange="importCSV(event)">
+                    </label>
+                    <button onclick="exportCSV()" class="bg-green-500 text-white px-4 py-2 rounded-lg font-bold hover:bg-green-600 shadow-sm transition"><i class="fas fa-file-excel mr-2"></i>Exportar CSV</button>
+                    <button onclick="showView('login-view')" class="bg-slate-200 text-slate-700 px-4 py-2 rounded-lg font-bold hover:bg-slate-300 shadow-sm transition">Salir</button>
+                </div>
+            </div>
+
+            <div class="bg-white p-6 rounded-2xl shadow-sm border-2 border-slate-100 mb-6 flex justify-between items-center flex-wrap gap-4">
+                <h3 class="text-xl font-bold text-slate-700">Acciones Masivas</h3>
+                <div class="space-x-2 flex flex-wrap gap-2">
+                    <button onclick="resetAllExams()" class="bg-orange-500 text-white px-4 py-2 rounded-lg font-bold hover:bg-orange-600 shadow-sm transition"><i class="fas fa-redo mr-2"></i>Reiniciar Todos</button>
+                    <button onclick="clearAllStudents()" class="bg-red-500 text-white px-4 py-2 rounded-lg font-bold hover:bg-red-600 shadow-sm transition"><i class="fas fa-trash-alt mr-2"></i>Borrar Lista Completa</button>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Add Student -->
+                <div class="bg-white p-6 rounded-2xl shadow-sm border-2 border-slate-100">
+                    <h3 class="text-xl font-bold text-slate-700 mb-4">Agregar Alumno</h3>
+                    <input type="text" id="new-student-name" placeholder="Nombre completo" class="w-full p-3 border-2 border-slate-200 rounded-lg mb-4">
+                    <input type="text" id="new-student-pass" placeholder="Contraseña (ej. gato123)" class="w-full p-3 border-2 border-slate-200 rounded-lg mb-4">
+                    <button onclick="addStudent()" class="w-full bg-blue-500 text-white font-bold py-3 rounded-lg hover:bg-blue-600 transition">Agregar</button>
+                </div>
+
+                <!-- Students List -->
+                <div class="bg-white p-6 rounded-2xl shadow-sm border-2 border-slate-100 overflow-y-auto max-h-96">
+                    <h3 class="text-xl font-bold text-slate-700 mb-4">Lista y Progreso</h3>
+                    <div id="admin-students-list" class="space-y-3">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Canvas Viewer Modal -->
+            <div id="canvas-viewer" class="hidden fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center p-4 z-50">
+                <div class="bg-white p-6 rounded-2xl max-w-2xl w-full">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-xl font-bold" id="canvas-viewer-title">Dibujo</h3>
+                        <button onclick="closeCanvasViewer()" class="text-red-500 font-bold text-xl">&times;</button>
+                    </div>
+                    <img id="canvas-viewer-img" src="" class="w-full border-2 border-slate-200 rounded-lg" alt="Dibujo del alumno">
+                </div>
+            </div>
+        </div>
+
+        <!-- Exam Wrapper -->
+        <div id="exam-view" class="view hidden-view flex-1 flex flex-col">
+            <!-- Progress & Controls -->
+            <div class="flex justify-between items-center mb-4 px-2">
+                <span class="text-sm font-bold text-slate-400 uppercase tracking-wide" id="exam-section-title">LENGUAJE</span>
+                <span class="text-sm font-bold text-blue-500 bg-blue-100 px-3 py-1 rounded-full" id="exam-progress">1 / 10</span>
+            </div>
+
+            <!-- Question Container -->
+            <div id="question-container" class="bg-white flex-1 p-6 rounded-3xl shadow-lg border-4 border-yellow-300 relative overflow-hidden">
+                <!-- Audio Button -->
+                <button onclick="playInstruction()" class="absolute top-4 right-4 w-12 h-12 bg-blue-500 text-white rounded-full flex items-center justify-center shadow-lg hover:bg-blue-600 transform transition active:scale-90 text-2xl z-10">
+                    <i class="fas fa-volume-up"></i>
+                </button>
+                
+                <h2 id="question-text" class="text-2xl font-bold text-slate-700 mb-8 pr-14 leading-snug">Instrucción aquí</h2>
+
+                <!-- Question Content Area -->
+                <div id="question-content" class="w-full min-h-[300px]">
+                    <!-- Dynamic content injected here -->
+                </div>
+            </div>
+
+            <!-- Next Button -->
+            <div class="mt-6 flex justify-end">
+                <button id="next-btn" onclick="nextQuestion()" class="bg-green-500 hover:bg-green-600 text-white text-xl font-bold py-4 px-10 rounded-2xl shadow-[0_6px_0_#16a34a] transform transition active:translate-y-2 active:shadow-none">Siguiente <i class="fas fa-arrow-right ml-2"></i></button>
+            </div>
+        </div>
+
+        <!-- Finished View -->
+        <div id="finished-view" class="view hidden-view flex-1 flex flex-col items-center justify-center text-center">
+            <i class="fas fa-trophy text-8xl text-yellow-400 mb-6 drop-shadow-lg"></i>
+            <h1 class="text-5xl font-bold text-green-500 mb-4">¡TERMINADO!</h1>
+            <p class="text-2xl text-slate-600 font-bold">Has completado tu examen muy bien.</p>
+            <button onclick="logout()" class="mt-10 bg-blue-500 hover:bg-blue-600 text-white text-xl font-bold py-3 px-8 rounded-xl shadow-lg">Cerrar Sesión</button>
+        </div>
+
+    </div>
+
+    <!-- Application Script -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, updateDoc, deleteDoc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Configuración de la base de datos
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'mi-examen-app';
+        let firebaseConfig = {};
+        
+        if (typeof __firebase_config !== 'undefined') {
+            // Usa el entorno colaborativo de prueba
+            firebaseConfig = JSON.parse(__firebase_config);
+        } else {
+            // ===================================================================
+            // 🚨 SI SUBES A GITHUB: PON TU CONFIGURACIÓN DE FIREBASE AQUÍ 🚨
+            // ===================================================================
+            firebaseConfig = {
+                apiKey: "AIzaSyCtO0Sg08JX4Ligxd_VIokKHW7KmdxlDlU",
+                authDomain: "prueba-22be8.firebaseapp.com",
+                projectId: "prueba-22be8",
+                storageBucket: "prueba-22be8.firebasestorage.app",
+                messagingSenderId: "219883045867",
+                appId: "1:219883045867:web:9a5920122cc7ceca050fae",
+                measurementId: "G-PNBQ47HWEN"
+            };
+        }
+
+        let app, db, auth;
+        try {
+            app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
+        } catch (e) {
+            console.error("Falta configuración de Firebase para GitHub:", e);
+        }
+
+        // Global Setup
+        let studentsData = [];
+        let currentStudentId = null;
+        let currentStudentData = null;
+        
+        // Exam State
+        let currentQuestionIndex = 0;
+        let examResults = {};
+        
+        // Expose functions to global scope for HTML onclick handlers
+        window.showView = showView;
+        window.loginStudent = loginStudent;
+        window.loginAdmin = loginAdmin;
+        window.addStudent = addStudent;
+        window.exportCSV = exportCSV;
+        window.playInstruction = playInstruction;
+        window.nextQuestion = nextQuestion;
+        window.logout = logout;
+        window.clearCanvas = clearCanvas;
+        window.undoAction = undoAction;
+        window.closeCanvasViewer = closeCanvasViewer;
+        window.viewCanvas = viewCanvas;
+        window.importCSV = importCSV;
+        window.editStudent = editStudent;
+        window.deleteStudent = deleteStudent;
+        window.clearAllStudents = clearAllStudents;
+        window.resetExam = resetExam;
+        window.resetAllExams = resetAllExams;
+
+        // --- Initialization ---
+        async function initApp() {
+            try {
+                if (typeof __initial_auth_token !== 'undefined') {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+                
+                if (!auth.currentUser) return;
+
+                const studentsRef = collection(db, 'artifacts', appId, 'public', 'data', 'students');
+                
+                // Escucha cambios en tiempo real desde la nube
+                onSnapshot(studentsRef, (snapshot) => {
+                    studentsData = [];
+                    snapshot.forEach(doc => {
+                        studentsData.push(doc.data());
+                    });
+                    
+                    // Ordenar por nombre alfabéticamente
+                    studentsData.sort((a, b) => a.name.localeCompare(b.name));
+                    renderStudentLists();
+                    
+                    if(document.getElementById('loading-view').classList.contains('hidden-view') === false) {
+                        showView('login-view');
+                    }
+                }, (error) => {
+                    console.error("Error de base de datos:", error);
+                    document.getElementById('loading-view').innerHTML = `<div class="text-center"><i class="fas fa-exclamation-triangle text-5xl text-red-500 mb-4"></i><p class='text-xl font-bold text-slate-600'>Falta conectar base de datos.</p><p class="text-sm text-slate-400 mt-2">Configura Firebase si estás en GitHub.</p></div>`;
+                });
+
+            } catch (error) {
+                console.error("Auth error:", error);
+            }
+        }
+
+        function renderStudentLists() {
+            const select = document.getElementById('student-select');
+            const adminList = document.getElementById('admin-students-list');
+            
+            const currentVal = select.value;
+            select.innerHTML = '<option value="">Selecciona tu nombre</option>';
+            adminList.innerHTML = '';
+
+            studentsData.forEach(data => {
+                // Populate Student Dropdown
+                const option = document.createElement('option');
+                option.value = data.id;
+                option.textContent = data.name;
+                select.appendChild(option);
+
+                // Populate Admin List
+                const statusColor = data.completed ? 'text-green-500' : 'text-slate-400';
+                const statusText = data.completed ? 'Completado' : 'Pendiente';
+                const listItem = document.createElement('div');
+                listItem.className = 'flex justify-between items-center p-3 bg-slate-50 rounded-lg border border-slate-200 flex-wrap gap-2';
+                listItem.innerHTML = `
+                    <div class="flex-1 min-w-[150px]">
+                        <div class="flex items-center gap-2">
+                            <p class="font-bold text-slate-700 truncate" id="name-${data.id}">${data.name}</p>
+                            <button onclick="editStudent('${data.id}')" class="text-slate-400 hover:text-blue-500 transition" title="Editar Nombre"><i class="fas fa-edit"></i></button>
+                        </div>
+                        <p class="text-sm text-slate-500">Pass: ${data.password}</p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-sm font-bold ${statusColor}">${statusText}</span>
+                        ${data.completed ? `<button onclick="viewCanvas('${data.q1_canvas}')" class="text-blue-500 p-2 hover:bg-blue-100 rounded transition" title="Ver Firma"><i class="fas fa-signature"></i></button>
+                        <button onclick="viewCanvas('${data.q4_science_canvas}')" class="text-purple-500 p-2 hover:bg-purple-100 rounded transition" title="Ver Tren"><i class="fas fa-train"></i></button>
+                        <button onclick="resetExam('${data.id}')" class="text-orange-500 p-2 hover:bg-orange-100 rounded transition" title="Reiniciar Examen"><i class="fas fa-redo"></i></button>` : ''}
+                        <button onclick="deleteStudent('${data.id}')" class="text-red-500 p-2 hover:bg-red-100 rounded transition" title="Eliminar Alumno"><i class="fas fa-trash"></i></button>
+                    </div>
+                `;
+                adminList.appendChild(listItem);
+            });
+            
+            if (currentVal) select.value = currentVal;
+        }
+
+        // --- Navigation ---
+        function showView(viewId) {
+            document.querySelectorAll('.view, #loading-view').forEach(el => el.classList.add('hidden-view'));
+            document.getElementById(viewId).classList.remove('hidden-view');
+            if (viewId === 'exam-view') {
+                document.getElementById('header-controls').classList.add('hidden-view');
+            } else {
+                document.getElementById('header-controls').classList.remove('hidden-view');
+            }
+        }
+
+        // --- Auth Logic ---
+        function loginStudent() {
+            const select = document.getElementById('student-select');
+            const pass = document.getElementById('student-password').value;
+            const errorEl = document.getElementById('login-error');
+            
+            if (!select.value || !pass) {
+                errorEl.textContent = "Elige tu nombre y pon tu contraseña.";
+                errorEl.classList.remove('hidden');
+                return;
+            }
+
+            const student = studentsData.find(s => s.id === select.value);
+            if (student && student.password === pass) {
+                if (student.completed) {
+                    errorEl.textContent = "Ya realizaste este examen.";
+                    errorEl.classList.remove('hidden');
+                } else {
+                    currentStudentId = student.id;
+                    currentStudentData = student;
+                    errorEl.classList.add('hidden');
+                    startExam();
+                }
+            } else {
+                errorEl.textContent = "Contraseña incorrecta.";
+                errorEl.classList.remove('hidden');
+            }
+        }
+
+        function loginAdmin() {
+            const pass = document.getElementById('admin-password').value;
+            if (pass === "gabyhug") {
+                document.getElementById('admin-password').value = '';
+                showView('admin-dashboard-view');
+            } else {
+                alert("Contraseña incorrecta.");
+            }
+        }
+
+        function logout() {
+            currentStudentId = null;
+            currentStudentData = null;
+            currentQuestionIndex = 0;
+            examResults = {};
+            document.getElementById('student-select').value = '';
+            document.getElementById('student-password').value = '';
+            showView('login-view');
+        }
+
+        async function addStudent() {
+            if (!auth.currentUser) return;
+            const name = document.getElementById('new-student-name').value.trim();
+            const pass = document.getElementById('new-student-pass').value.trim();
+            if (!name || !pass) return alert("Llena ambos campos");
+            
+            const id = Date.now().toString() + Math.random().toString(36).substring(2, 5);
+            const newStudent = {
+                id: id,
+                name: name,
+                password: pass,
+                completed: false,
+                results: {},
+                q1_canvas: "",
+                q4_science_canvas: ""
+            };
+            
+            // Guardar en la nube
+            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'students', id);
+            await setDoc(docRef, newStudent);
+            
+            document.getElementById('new-student-name').value = '';
+            document.getElementById('new-student-pass').value = '';
+        }
+
+        // --- Admin Data Management ---
+
+        async function importCSV(event) {
+            if (!auth.currentUser) return;
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = async function(e) {
+                const text = e.target.result;
+                const lines = text.split('\n');
+                let added = 0;
+                
+                for(let i=0; i<lines.length; i++) {
+                    const line = lines[i].trim();
+                    if(!line) continue;
+                    
+                    if(i === 0 && line.toLowerCase().includes('nombre') && line.toLowerCase().includes('contra')) continue;
+
+                    const parts = line.split(',');
+                    if(parts.length >= 2) {
+                        const name = parts[0].trim();
+                        const pass = parts[1].trim();
+                        if(name && pass) {
+                            const id = Date.now().toString() + Math.random().toString(36).substring(2, 8);
+                            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'students', id);
+                            await setDoc(docRef, {
+                                id: id,
+                                name: name,
+                                password: pass,
+                                completed: false,
+                                results: {},
+                                q1_canvas: "",
+                                q4_science_canvas: ""
+                            });
+                            added++;
+                        }
+                    }
+                }
+                if(added > 0) {
+                    alert(`Se están subiendo ${added} alumnos a la nube.`);
+                } else {
+                    alert("No se encontraron alumnos válidos. El formato debe ser: Nombre,Contraseña");
+                }
+                event.target.value = ''; 
+            };
+            reader.readAsText(file);
+        }
+
+        async function editStudent(id) {
+            if (!auth.currentUser) return;
+            const student = studentsData.find(s => s.id === id);
+            if(!student) return;
+            const newName = prompt("Ingresa el nuevo nombre:", student.name);
+            if(newName && newName.trim() !== "") {
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'students', id);
+                await updateDoc(docRef, { name: newName.trim() });
+            }
+        }
+
+        async function deleteStudent(id) {
+            if (!auth.currentUser) return;
+            if(confirm("¿Estás seguro de que deseas eliminar a este alumno de la nube?")) {
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'students', id);
+                await deleteDoc(docRef);
+            }
+        }
+
+        async function clearAllStudents() {
+            if (!auth.currentUser) return;
+            if(confirm("¡ATENCIÓN! Esto borrará TODA la lista de alumnos en la nube. ¿Estás absolutamente seguro?")) {
+                for (const student of studentsData) {
+                    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'students', student.id);
+                    await deleteDoc(docRef); // Borramos uno por uno de la nube
+                }
+            }
+        }
+
+        async function resetExam(id) {
+            if (!auth.currentUser) return;
+            if(confirm("Esto borrará las respuestas de este alumno y le permitirá volver a hacer el examen. ¿Continuar?")) {
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'students', id);
+                await updateDoc(docRef, {
+                    completed: false,
+                    results: {},
+                    q1_canvas: "",
+                    q4_science_canvas: ""
+                });
+            }
+        }
+
+        async function resetAllExams() {
+            if (!auth.currentUser) return;
+            if(confirm("Esto borrará las respuestas de TODOS los alumnos. ¿Estás seguro?")) {
+                for (const student of studentsData) {
+                    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'students', student.id);
+                    await updateDoc(docRef, {
+                        completed: false,
+                        results: {},
+                        q1_canvas: "",
+                        q4_science_canvas: ""
+                    });
+                }
+            }
+        }
+
+        // --- EXAM DEFINITION & LOGIC ---
+
+        const questions = [
+            // LENGUAJE
+            {
+                section: "LENGUAJE",
+                instruction: "ESCRIBE TU NOMBRE EN EL RECUADRO",
+                type: "canvas",
+                render: () => `
+                    <div class="canvas-container mx-auto">
+                        <div class="canvas-lines"></div>
+                        <canvas id="q-canvas"></canvas>
+                    </div>
+                    <div class="text-center mt-4">
+                        <button onclick="clearCanvas()" class="bg-red-100 text-red-600 px-4 py-2 rounded-lg font-bold"><i class="fas fa-eraser mr-2"></i>Borrar todo</button>
+                    </div>
+                `,
+                init: initCanvas,
+                save: () => {
+                    const canvas = document.getElementById('q-canvas');
+                    examResults.q1_canvas = canvas.toDataURL('image/jpeg', 0.5); // compress
+                }
+            },
+            {
+                section: "LENGUAJE",
+                instruction: "COLOCA LA SILABA CORRECTA EN CADA CASO",
+                type: "dragdrop",
+                undosAllowed: 3,
+                render: () => `
+                    <div class="flex flex-col gap-8">
+                        <div class="flex justify-between" id="q2-targets">
+                            ${['✉️ ___BRE', '🪑 ___SA', '☕ ___SA', '🌙 ___NA', '🍍 ___ÑA'].map((t, i) => `
+                                <div class="flex flex-col items-center">
+                                    <div class="text-5xl mb-2">${t.split(' ')[0]}</div>
+                                    <div class="dropzone w-20" data-index="${i}" data-correct="${['SO','ME','TA','LU','PI'][i]}"></div>
+                                    <div class="font-bold text-slate-500 mt-1">${t.split(' ')[1]}</div>
+                                </div>
+                            `).join('')}
+                        </div>
+                        <div class="flex flex-wrap justify-center gap-3 bg-slate-100 p-4 rounded-xl" id="q2-options">
+                            ${['MA','ME','MI','MO','MU','SA','SE','SI','SO','SU','TA','TE','TI','TO','TU','LA','LE','LI','LO','LU','PA','PE','PI','PO','PU']
+                                .sort(()=>Math.random()-0.5).slice(0, 15) // Pick 15 random including correct ones (we must ensure correct ones exist, let's hardcode correct + random)
+                                .map(s => `<div class="draggable bg-white shadow px-3 py-2 text-xl font-bold rounded cursor-pointer border-2 border-slate-200" onclick="selectItem(this)">${s}</div>`).join('')}
+                        </div>
+                        <div class="text-center"><button id="undo-btn" onclick="undoAction()" class="hidden bg-orange-100 text-orange-600 px-4 py-2 rounded-lg font-bold"><i class="fas fa-undo mr-2"></i>Deshacer (<span id="undo-count">3</span> restantes)</button></div>
+                    </div>
+                `,
+                init: () => {
+                    // Ensure correct syllables exist in options
+                    const req = ['SO','ME','TA','LU','PI'];
+                    const container = document.getElementById('q2-options');
+                    req.forEach(r => {
+                        if(!container.innerHTML.includes(`>${r}<`)){
+                             container.innerHTML += `<div class="draggable bg-white shadow px-3 py-2 text-xl font-bold rounded cursor-pointer border-2 border-slate-200" onclick="selectItem(this)">${r}</div>`;
+                        }
+                    });
+                    initClickDrop('q2-targets', 'q2-options', 3, true); 
+                },
+                save: () => {
+                    examResults.q2_fails = getClickDropFails();
+                    examResults.q2_undos_used = 3 - currentUndoCount;
+                }
+            },
+            {
+                section: "LENGUAJE",
+                instruction: "LLEVA LA PALABRA AL DIBUJO QUE CORRESPONDE",
+                type: "dragdrop",
+                undosAllowed: 3,
+                render: () => `
+                    <div class="flex flex-col gap-6">
+                        <div class="flex justify-between" id="q3-targets">
+                            ${['✋', '🪑', '🐢', '🦁', '🚪'].map((icon, i) => `
+                                <div class="flex flex-col items-center">
+                                    <div class="text-5xl mb-2">${icon}</div>
+                                    <div class="dropzone w-24" data-index="${i}" data-correct="${['MANO','SILLA','TORTUGA','LEON','PUERTA'][i]}"></div>
+                                </div>
+                            `).join('')}
+                        </div>
+                        <div class="flex flex-wrap justify-center gap-3 bg-slate-100 p-4 rounded-xl" id="q3-options">
+                             ${['MANO','SILLA','TORTUGA','LEON','PUERTA','MONO','MESA','ORUGA','TIGRE','PUERCO']
+                                .sort(()=>Math.random()-0.5)
+                                .map(w => `<div class="draggable bg-white shadow px-3 py-2 text-sm font-bold rounded cursor-pointer border-2 border-slate-200" onclick="selectItem(this)">${w}</div>`).join('')}
+                        </div>
+                        <div class="text-center"><button id="undo-btn" onclick="undoAction()" class="hidden bg-orange-100 text-orange-600 px-4 py-2 rounded-lg font-bold"><i class="fas fa-undo mr-2"></i>Deshacer (<span id="undo-count">3</span> restantes)</button></div>
+                    </div>
+                `,
+                init: () => initClickDrop('q3-targets', 'q3-options', 3, true),
+                save: () => {
+                    examResults.q3_fails = getClickDropFails();
+                    examResults.q3_undos_used = 3 - currentUndoCount;
+                }
+            },
+            {
+                section: "LENGUAJE",
+                instruction: "OBSERVA Y COLOCA CORRECTAMENTE, PUEDES DESHACER SOLO UNA VEZ POR IMAGEN",
+                type: "complex",
+                render: () => {
+                    const items = [
+                        {icon: '🐕', sils: ['RRO','PE'], correct: ['PE','RRO']},
+                        {icon: '🎤', sils: ['FO','CRO','MI','NO'], correct: ['MI','CRO','FO','NO']},
+                        {icon: '🐶', sils: ['BUE','SA','SO'], correct: ['SA','BUE','SO']},
+                        {icon: '🌵', sils: ['NA','TU'], correct: ['TU','NA']},
+                        {icon: '🐺', sils: ['BO','LO'], correct: ['LO','BO']}
+                    ];
+                    return `<div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="q4-container">
+                        ${items.map((item, i) => `
+                            <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-col items-center">
+                                <div class="flex gap-2 mb-2 source-zone" id="q4-src-${i}">
+                                    ${item.sils.map(s => `<div class="draggable bg-white shadow px-2 py-1 text-sm font-bold rounded cursor-pointer border border-slate-200" onclick="selectItem(this, ${i})">${s}</div>`).join('')}
+                                </div>
+                                <div class="text-4xl my-2">${item.icon}</div>
+                                <div class="flex gap-2 mb-2 target-zone" id="q4-tgt-${i}">
+                                    ${item.correct.map(c => `<div class="dropzone w-10 h-10" data-correct="${c}" data-group="${i}" onclick="placeItem(this, ${i})"></div>`).join('')}
+                                </div>
+                                <button onclick="undoLocal(${i})" id="undo-local-${i}" class="text-xs bg-orange-100 text-orange-600 px-2 py-1 rounded font-bold mt-1 invisible"><i class="fas fa-undo"></i> Deshacer (1)</button>
+                            </div>
+                        `).join('')}
+                    </div>`;
+                },
+                init: () => { window.q4State = [1,1,1,1,1]; /* 1 undo per item */ },
+                save: () => {
+                    let correctWords = 0;
+                    let undosUsed = 0;
+                    for(let i=0; i<5; i++) {
+                        if(window.q4State[i] === 0) undosUsed++;
+                        const zones = document.querySelectorAll(`#q4-tgt-${i} .dropzone`);
+                        let isCorrect = true;
+                        zones.forEach(z => {
+                            if(!z.textContent || z.textContent !== z.dataset.correct) isCorrect = false;
+                        });
+                        if(isCorrect) correctWords++;
+                    }
+                    examResults.q4_correct_words = correctWords;
+                    examResults.q4_undos_used = undosUsed;
+                }
+            },
+            {
+                section: "LENGUAJE",
+                instruction: "LEE DETENIDAMENTE, LUEGO COMPLETA EL TEXTO.",
+                type: "dragdrop",
+                undosAllowed: 3,
+                render: () => `
+                    <div class="bg-yellow-50 p-4 rounded-xl border-2 border-yellow-200 mb-4 font-mono font-bold text-center text-lg">
+                        LA PELOTA DE MIMI<br><br>
+                        MIMI TOMA SU PELOTA.<br>
+                        MAMÁ LA MIRA Y SONRÍE.<br>
+                        MIMI PATEA LA PELOTA SOLA.<br>
+                        LA PELOTA TOCA UNA MACETA.<br>
+                        MAMÁ TOMA LA MACETA ROTA.<br>
+                        MIMI SE MEJORA Y SALUDA.
+                    </div>
+                    <div class="text-lg font-bold space-y-4" id="q5-targets">
+                        <p>MIMI TOMA SU <span class="dropzone inline-flex w-32 h-8 align-middle" data-correct="PELOTA"></span>.</p>
+                        <p><span class="dropzone inline-flex w-24 h-8 align-middle" data-correct="MAMÁ"></span> LA MIRA Y SONRÍE.</p>
+                        <p><span class="dropzone inline-flex w-24 h-8 align-middle" data-correct="MIMI"></span> PATEA LA PELOTA SOLA.</p>
+                        <p>LA PELOTA TOCA UNA <span class="dropzone inline-flex w-32 h-8 align-middle" data-correct="MACETA"></span>.</p>
+                        <p>MAMÁ TOMA LA MACETA <span class="dropzone inline-flex w-24 h-8 align-middle" data-correct="ROTA"></span>.</p>
+                        <p>MIMI SE MEJORA Y <span class="dropzone inline-flex w-32 h-8 align-middle" data-correct="SALUDA"></span>.</p>
+                    </div>
+                    <div class="mt-6 flex flex-wrap justify-center gap-2 bg-slate-100 p-4 rounded-xl" id="q5-options">
+                        ${['PELOTA','MAMÁ','MIMI','MACETA','ROTA','SALUDA', 'PALETA', 'PAPÁ', 'MEME', 'MALETA', 'ROJA', 'SALTA']
+                            .sort(()=>Math.random()-0.5)
+                            .map(w => `<div class="draggable bg-white shadow px-3 py-1 text-sm font-bold rounded cursor-pointer border border-slate-200" onclick="selectItem(this)">${w}</div>`).join('')}
+                    </div>
+                    <div class="text-center mt-4"><button id="undo-btn" onclick="undoAction()" class="hidden bg-orange-100 text-orange-600 px-4 py-2 rounded-lg font-bold"><i class="fas fa-undo mr-2"></i>Deshacer (<span id="undo-count">3</span> restantes)</button></div>
+                `,
+                init: () => initClickDrop('q5-targets', 'q5-options', 3, false),
+                save: () => {
+                    examResults.q5_fails = getClickDropFails();
+                    examResults.q5_undos_used = 3 - currentUndoCount;
+                }
+            },
+            // PENSAMIENTO CIENTIFICO
+            {
+                section: "PENSAMIENTO CIENTIFICO",
+                instruction: "RELACIONAR LOS NUMEROS CON LA CANTIDAD DE PELOTITAS",
+                type: "input",
+                render: () => `
+                    <div class="flex gap-8 justify-center">
+                        <div class="flex flex-col gap-4">
+                            ${[7, 9, 2, 6, 4].map(n => `
+                                <div class="bg-blue-50 p-3 rounded-xl border border-blue-200 flex items-center justify-center gap-1 w-40 flex-wrap">
+                                    ${Array(n).fill('<div class="w-4 h-4 bg-blue-500 rounded-full"></div>').join('')}
+                                </div>
+                            `).join('')}
+                        </div>
+                        <div class="flex flex-col gap-4" id="s1-inputs">
+                             ${[7, 9, 2, 6, 4].map((n, i) => `
+                                <div class="h-auto flex items-center p-3">
+                                    <input type="number" class="s1-input w-20 h-12 text-center text-2xl font-bold border-b-4 border-slate-300 focus:outline-none focus:border-green-500 bg-transparent" data-correct="${n}">
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `,
+                init: () => {},
+                save: () => {
+                    let aciertos = 0; let fallas = 0;
+                    document.querySelectorAll('.s1-input').forEach(inp => {
+                        if(parseInt(inp.value) === parseInt(inp.dataset.correct)) aciertos++;
+                        else fallas++;
+                    });
+                    examResults.s1_aciertos = aciertos;
+                    examResults.s1_fallas = fallas;
+                }
+            },
+            {
+                section: "PENSAMIENTO CIENTIFICO",
+                instruction: "COLOCA UNA CANTIDAD MAYOR DE MANZANAS A LAS QUE HAY EN EL RECUADRO Y PRESIONA EL BOTON AL TERMINAR",
+                type: "apples",
+                render: () => `
+                    <div class="flex justify-center gap-8 mb-8">
+                        <div class="w-40 h-40 border-4 border-slate-300 rounded-2xl flex flex-wrap content-start gap-2 p-2 bg-slate-50">
+                            ${Array(6).fill('<div class="text-3xl">🍎</div>').join('')}
+                        </div>
+                        <div class="text-5xl flex items-center font-bold text-slate-400">></div>
+                        <div class="w-40 h-40 border-4 border-dashed border-green-400 rounded-2xl flex flex-wrap content-start gap-2 p-2 bg-green-50 cursor-pointer" id="s2-target" onclick="moveAppleToBox('s2')">
+                            <!-- Target -->
+                        </div>
+                    </div>
+                    <div class="bg-amber-100 p-6 rounded-2xl border-4 border-amber-200 text-center relative mx-auto w-64" id="s2-basket" onclick="moveAppleToBasket('s2')">
+                        <div class="absolute -top-4 left-1/2 transform -translate-x-1/2 bg-amber-500 text-white px-4 rounded-full font-bold text-sm">CANASTA</div>
+                        <div class="flex flex-wrap justify-center gap-2 mt-2" id="s2-basket-items">
+                            ${Array(10).fill('<div class="text-3xl cursor-pointer">🍎</div>').join('')}
+                        </div>
+                    </div>
+                    <p class="text-center text-sm text-slate-500 mt-4">Toca la canasta y el recuadro para mover las manzanas</p>
+                `,
+                init: () => { window.s2Apples = 0; },
+                save: () => {
+                    examResults.s2_result = window.s2Apples > 6 ? "acierto" : "falla";
+                }
+            },
+            {
+                section: "PENSAMIENTO CIENTIFICO",
+                instruction: "COLOCA UNA CANTIDAD MENOR DE MANZANAS A LAS QUE HAY EN EL RECUADRO Y PRESIONA EL BOTON AL TERMINAR",
+                type: "apples",
+                render: () => `
+                    <div class="flex justify-center gap-8 mb-8">
+                        <div class="w-40 h-40 border-4 border-slate-300 rounded-2xl flex flex-wrap content-start gap-2 p-2 bg-slate-50">
+                            ${Array(4).fill('<div class="text-3xl">🍎</div>').join('')}
+                        </div>
+                        <div class="text-5xl flex items-center font-bold text-slate-400"><</div>
+                        <div class="w-40 h-40 border-4 border-dashed border-red-400 rounded-2xl flex flex-wrap content-start gap-2 p-2 bg-red-50 cursor-pointer" id="s3-target" onclick="moveAppleToBox('s3')">
+                            <!-- Target -->
+                        </div>
+                    </div>
+                    <div class="bg-amber-100 p-6 rounded-2xl border-4 border-amber-200 text-center relative mx-auto w-64" id="s3-basket" onclick="moveAppleToBasket('s3')">
+                         <div class="absolute -top-4 left-1/2 transform -translate-x-1/2 bg-amber-500 text-white px-4 rounded-full font-bold text-sm">CANASTA</div>
+                        <div class="flex flex-wrap justify-center gap-2 mt-2" id="s3-basket-items">
+                            ${Array(10).fill('<div class="text-3xl cursor-pointer">🍎</div>').join('')}
+                        </div>
+                    </div>
+                `,
+                init: () => { window.s3Apples = 0; },
+                save: () => {
+                    examResults.s3_result = window.s3Apples < 4 ? "acierto" : "falla";
+                }
+            },
+            {
+                section: "PENSAMIENTO CIENTIFICO",
+                instruction: "ESCRIBE EL NUMERO SEGÚN LOS VAGONES DEL TREN",
+                type: "canvas",
+                render: () => `
+                    <div class="flex justify-center mb-6 text-6xl">
+                        🚂${Array(7).fill('🚃').join('')}
+                    </div>
+                    <div class="canvas-container mx-auto h-40">
+                        <div class="canvas-lines"></div>
+                        <canvas id="q-canvas"></canvas>
+                    </div>
+                    <div class="text-center mt-4">
+                        <button onclick="clearCanvas()" class="bg-red-100 text-red-600 px-4 py-2 rounded-lg font-bold"><i class="fas fa-eraser mr-2"></i>Borrar todo</button>
+                    </div>
+                `,
+                init: initCanvas,
+                save: () => {
+                    const canvas = document.getElementById('q-canvas');
+                    examResults.s4_canvas = canvas.toDataURL('image/jpeg', 0.5);
+                }
+            },
+            {
+                section: "PENSAMIENTO CIENTIFICO",
+                instruction: "REPRESENTAR CON CANICAS (ROJAS DECENAS, AZULES UNIDADES) LAS SIGUIENTES CANTIDADES, SOLO TIENES UNA OPORTUNIDAD PARA CORREGIR POR NUMERO",
+                type: "marbles",
+                render: () => {
+                    const nums = [4, 9, 18, 2, 15, 11];
+                    return `
+                    <div class="flex flex-col gap-4 mb-6">
+                        ${nums.map((n, i) => `
+                            <div class="flex items-center gap-4">
+                                <div class="text-2xl font-bold w-10 text-right">${n}</div>
+                                <div class="flex-1 min-h-[40px] border-b-2 border-slate-300 flex flex-wrap gap-1 p-1 target-marble-zone" id="m-tgt-${i}" onclick="placeMarble(${i})"></div>
+                                <button onclick="undoMarble(${i})" id="undo-m-${i}" class="text-xs bg-orange-100 text-orange-600 px-2 py-1 rounded font-bold invisible"><i class="fas fa-undo"></i></button>
+                            </div>
+                        `).join('')}
+                    </div>
+                    <div class="flex justify-center gap-8 bg-slate-100 p-4 rounded-xl">
+                        <div class="text-center cursor-pointer transform hover:scale-110 transition" onclick="selectMarble('blue')">
+                            <div class="w-16 h-16 rounded-full mx-auto shadow-inner bg-gradient-to-br from-blue-300 to-blue-600 flex items-center justify-center text-white font-bold mb-2 border-2 border-blue-200" id="sel-blue">1</div>
+                            <span class="text-xs font-bold text-slate-500">Unidades</span>
+                        </div>
+                        <div class="text-center cursor-pointer transform hover:scale-110 transition" onclick="selectMarble('red')">
+                            <div class="w-16 h-16 rounded-full mx-auto shadow-inner bg-gradient-to-br from-red-300 to-red-600 flex items-center justify-center text-white font-bold mb-2 border-2 border-red-200" id="sel-red">10</div>
+                             <span class="text-xs font-bold text-slate-500">Decenas</span>
+                        </div>
+                    </div>
+                    `
+                },
+                init: () => { window.marbleUndos = [1,1,1,1,1,1]; window.selectedMarble = null; },
+                save: () => {
+                    const nums = [4, 9, 18, 2, 15, 11];
+                    let aciertos = 0;
+                    for(let i=0; i<6; i++) {
+                        const zone = document.getElementById(`m-tgt-${i}`);
+                        const blues = zone.querySelectorAll('.marble-blue').length;
+                        const reds = zone.querySelectorAll('.marble-red').length;
+                        const total = (reds * 10) + blues;
+                        if(total === nums[i]) aciertos++;
+                    }
+                    examResults.s5_aciertos = aciertos;
+                }
+            }
+        ];
+
+        // --- Exam Runner ---
+        function startExam() {
+            currentQuestionIndex = 0;
+            examResults = {};
+            showView('exam-view');
+            renderQuestion();
+        }
+
+        function renderQuestion() {
+            const q = questions[currentQuestionIndex];
+            document.getElementById('exam-section-title').textContent = q.section;
+            document.getElementById('exam-progress').textContent = `${currentQuestionIndex + 1} / ${questions.length}`;
+            document.getElementById('question-text').textContent = q.instruction;
+            document.getElementById('question-content').innerHTML = q.render();
+            
+            // Adjust Next button text
+            const btn = document.getElementById('next-btn');
+            if (currentQuestionIndex === questions.length - 1) {
+                btn.innerHTML = 'TERMINAR EXAMEN <i class="fas fa-flag-checkered ml-2"></i>';
+                btn.classList.replace('bg-green-500', 'bg-blue-600');
+                btn.classList.replace('hover:bg-green-600', 'hover:bg-blue-700');
+                btn.classList.replace('shadow-[0_6px_0_#16a34a]', 'shadow-[0_6px_0_#2563eb]');
+            } else {
+                btn.innerHTML = 'Siguiente <i class="fas fa-arrow-right ml-2"></i>';
+                btn.classList.replace('bg-blue-600', 'bg-green-500');
+                btn.classList.replace('hover:bg-blue-700', 'hover:bg-green-600');
+                btn.classList.replace('shadow-[0_6px_0_#2563eb]', 'shadow-[0_6px_0_#16a34a]');
+            }
+
+            if (q.init) q.init();
+        }
+
+        async function nextQuestion() {
+            const q = questions[currentQuestionIndex];
+            if (q.save) q.save();
+
+            currentQuestionIndex++;
+            if (currentQuestionIndex < questions.length) {
+                renderQuestion();
+            } else {
+                await finishExam();
+            }
+        }
+
+        async function finishExam() {
+            if (!auth.currentUser) return;
+            
+            try {
+                // Guarda los resultados en la nube
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'students', currentStudentId);
+                await updateDoc(docRef, {
+                    completed: true,
+                    results: examResults,
+                    q1_canvas: examResults.q1_canvas || "",
+                    q4_science_canvas: examResults.s4_canvas || ""
+                });
+                showView('finished-view');
+            } catch (error) {
+                console.error("Error al guardar:", error);
+                alert("Hubo un error de conexión al guardar el examen. Avísale a tu maestro.");
+            }
+        }
+
+        // --- Interaction Helpers ---
+
+        // Speech
+        function playInstruction() {
+            if (!('speechSynthesis' in window)) return;
+            speechSynthesis.cancel(); // stop current
+            const text = document.getElementById('question-text').textContent;
+            const msg = new SpeechSynthesisUtterance(text);
+            msg.lang = 'es-MX';
+            msg.rate = 0.9;
+            speechSynthesis.speak(msg);
+        }
+
+        // Canvas
+        let isDrawing = false, ctx, lastX = 0, lastY = 0;
+        function initCanvas() {
+            const canvas = document.getElementById('q-canvas');
+            if(!canvas) return;
+            ctx = canvas.getContext('2d');
+            
+            // Resize canvas to match display size for correct coordinates
+            const rect = canvas.parentElement.getBoundingClientRect();
+            canvas.width = rect.width;
+            canvas.height = rect.height;
+            
+            ctx.lineWidth = 4;
+            ctx.lineCap = 'round';
+            ctx.strokeStyle = '#334155';
+
+            const start = (e) => {
+                isDrawing = true;
+                const pos = getPos(e);
+                lastX = pos.x; lastY = pos.y;
+            };
+            const draw = (e) => {
+                if (!isDrawing) return;
+                e.preventDefault();
+                const pos = getPos(e);
+                ctx.beginPath();
+                ctx.moveTo(lastX, lastY);
+                ctx.lineTo(pos.x, pos.y);
+                ctx.stroke();
+                lastX = pos.x; lastY = pos.y;
+            };
+            const stop = () => isDrawing = false;
+
+            function getPos(e) {
+                const rect = canvas.getBoundingClientRect();
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                return { x: clientX - rect.left, y: clientY - rect.top };
+            }
+
+            canvas.addEventListener('mousedown', start);
+            canvas.addEventListener('mousemove', draw);
+            window.addEventListener('mouseup', stop);
+            
+            canvas.addEventListener('touchstart', start, {passive:false});
+            canvas.addEventListener('touchmove', draw, {passive:false});
+            window.addEventListener('touchend', stop);
+        }
+
+        function clearCanvas() {
+            if(!ctx) return;
+            const canvas = document.getElementById('q-canvas');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+
+        // Drag & Drop Simulation (Click to select, click to place)
+        let selectedElement = null;
+        let currentUndoCount = 0;
+        let actionHistory = [];
+
+        function initClickDrop(targetId, optionsId, undos, requireCorrectMatchCheckingLocally = false) {
+            selectedElement = null;
+            currentUndoCount = undos;
+            actionHistory = [];
+            
+            const btn = document.getElementById('undo-btn');
+            if(btn) {
+                btn.classList.remove('hidden');
+                document.getElementById('undo-count').textContent = currentUndoCount;
+            }
+
+            // Target click handlers
+            document.querySelectorAll(`#${targetId} .dropzone`).forEach(dz => {
+                dz.onclick = () => {
+                    if (selectedElement && !dz.hasChildNodes()) {
+                        // Place item
+                        const cloned = selectedElement.cloneNode(true);
+                        cloned.classList.remove('selected-item');
+                        cloned.onclick = null; // disable re-click
+                        dz.appendChild(cloned);
+                        dz.classList.add('bg-green-50', 'border-green-400');
+                        
+                        // Hide original
+                        selectedElement.style.visibility = 'hidden';
+                        
+                        // Save history
+                        actionHistory.push({ org: selectedElement, dest: dz, cloned: cloned });
+                        selectedElement = null;
+                        document.querySelectorAll('.selected-item').forEach(el => el.classList.remove('selected-item'));
+                    }
+                };
+            });
+        }
+
+        window.selectItem = function(el, group = null) {
+            // For complex Q4 where group matters
+            if(group !== null && window.selectedGroup !== undefined && window.selectedGroup !== group) {
+                // If picking from a different group, clear selection
+                document.querySelectorAll('.selected-item').forEach(e => e.classList.remove('selected-item'));
+            }
+            
+            document.querySelectorAll('.selected-item').forEach(e => e.classList.remove('selected-item'));
+            el.classList.add('selected-item');
+            selectedElement = el;
+            if(group !== null) window.selectedGroup = group;
+        }
+
+        window.placeItem = function(dz, group) {
+            if (selectedElement && window.selectedGroup === group && !dz.hasChildNodes()) {
+                const cloned = selectedElement.cloneNode(true);
+                cloned.classList.remove('selected-item');
+                cloned.onclick = null;
+                dz.appendChild(cloned);
+                selectedElement.style.visibility = 'hidden';
+                
+                // Show local undo if available
+                if(window.q4State[group] > 0) {
+                    const ubtn = document.getElementById(`undo-local-${group}`);
+                    ubtn.classList.remove('invisible');
+                    // attach simple history just for this group
+                    if(!window.q4Hist) window.q4Hist = {};
+                    if(!window.q4Hist[group]) window.q4Hist[group] = [];
+                    window.q4Hist[group].push({org: selectedElement, dest: dz, cloned: cloned});
+                }
+                
+                selectedElement = null;
+                window.selectedGroup = null;
+            }
+        }
+
+        function undoAction() {
+            if (currentUndoCount > 0 && actionHistory.length > 0) {
+                const last = actionHistory.pop();
+                last.dest.removeChild(last.cloned);
+                last.dest.classList.remove('bg-green-50', 'border-green-400');
+                last.org.style.visibility = 'visible';
+                currentUndoCount--;
+                document.getElementById('undo-count').textContent = currentUndoCount;
+                if(currentUndoCount === 0) {
+                    document.getElementById('undo-btn').classList.add('opacity-50', 'pointer-events-none');
+                }
+            }
+        }
+
+        window.undoLocal = function(group) {
+            if(window.q4State[group] > 0 && window.q4Hist && window.q4Hist[group] && window.q4Hist[group].length > 0) {
+                const last = window.q4Hist[group].pop();
+                last.dest.removeChild(last.cloned);
+                last.org.style.visibility = 'visible';
+                window.q4State[group]--;
+                if(window.q4State[group] === 0) {
+                    document.getElementById(`undo-local-${group}`).classList.add('hidden');
+                }
+            }
+        }
+
+        function getClickDropFails() {
+            let fails = 0;
+            document.querySelectorAll('.dropzone').forEach(dz => {
+                if(dz.hasChildNodes()) {
+                    const val = dz.firstChild.textContent.trim();
+                    if(val !== dz.dataset.correct) fails++;
+                }
+            });
+            return fails;
+        }
+
+        // Apples Logic
+        window.moveAppleToBox = function(prefix) {
+            const basketItems = document.getElementById(`${prefix}-basket-items`);
+            const target = document.getElementById(`${prefix}-target`);
+            if (basketItems.children.length > 0) {
+                const apple = basketItems.children[0];
+                target.appendChild(apple);
+                if(prefix === 's2') window.s2Apples++;
+                if(prefix === 's3') window.s3Apples++;
+            }
+        }
+        window.moveAppleToBasket = function(prefix) {
+             const basketItems = document.getElementById(`${prefix}-basket-items`);
+             const target = document.getElementById(`${prefix}-target`);
+             if (target.children.length > 0) {
+                 const apple = target.children[0];
+                 basketItems.appendChild(apple);
+                 if(prefix === 's2') window.s2Apples--;
+                 if(prefix === 's3') window.s3Apples--;
+             }
+        }
+
+        // Marbles Logic
+        window.selectMarble = function(color) {
+            window.selectedMarble = color;
+            document.getElementById('sel-blue').classList.remove('ring-4', 'ring-blue-400');
+            document.getElementById('sel-red').classList.remove('ring-4', 'ring-red-400');
+            if(color === 'blue') document.getElementById('sel-blue').classList.add('ring-4', 'ring-blue-400');
+            if(color === 'red') document.getElementById('sel-red').classList.add('ring-4', 'ring-red-400');
+        }
+        window.placeMarble = function(index) {
+            if(!window.selectedMarble) return;
+            const zone = document.getElementById(`m-tgt-${index}`);
+            const el = document.createElement('div');
+            el.className = `marble marble-${window.selectedMarble}`;
+            zone.appendChild(el);
+            
+            if(window.marbleUndos[index] > 0) {
+                document.getElementById(`undo-m-${index}`).classList.remove('invisible');
+            }
+        }
+        window.undoMarble = function(index) {
+             if(window.marbleUndos[index] > 0) {
+                 const zone = document.getElementById(`m-tgt-${index}`);
+                 if(zone.lastChild) {
+                     zone.removeChild(zone.lastChild);
+                     window.marbleUndos[index]--;
+                     if(window.marbleUndos[index] === 0) {
+                         document.getElementById(`undo-m-${index}`).classList.add('invisible');
+                     }
+                 }
+             }
+        }
+
+        // --- Admin Data Export ---
+        function exportCSV() {
+            let csvContent = "data:text/csv;charset=utf-8,";
+            csvContent += "Alumno,Completado,L-Q2-Fallas,L-Q2-Deshacer,L-Q3-Fallas,L-Q3-Deshacer,L-Q4-Aciertos,L-Q4-Deshacer,L-Q5-Fallas,L-Q5-Deshacer,S-Q1-Aciertos,S-Q2-Res,S-Q3-Res,S-Q5-Aciertos\n";
+            
+            studentsData.forEach(s => {
+                const r = s.results || {};
+                const row = [
+                    s.name,
+                    s.completed ? 'SI' : 'NO',
+                    r.q2_fails ?? '-', r.q2_undos_used ?? '-',
+                    r.q3_fails ?? '-', r.q3_undos_used ?? '-',
+                    r.q4_correct_words ?? '-', r.q4_undos_used ?? '-',
+                    r.q5_fails ?? '-', r.q5_undos_used ?? '-',
+                    r.s1_aciertos ?? '-',
+                    r.s2_result ?? '-',
+                    r.s3_result ?? '-',
+                    r.s5_aciertos ?? '-'
+                ];
+                csvContent += row.join(",") + "\n";
+            });
+
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", "reporte_examen.csv");
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+        
+        function viewCanvas(base64Data) {
+            if(!base64Data) {
+                alert("No hay dibujo guardado.");
+                return;
+            }
+            document.getElementById('canvas-viewer-img').src = base64Data;
+            document.getElementById('canvas-viewer').classList.remove('hidden');
+        }
+        function closeCanvasViewer() {
+            document.getElementById('canvas-viewer').classList.add('hidden');
+        }
+
+        // Boot
+        window.addEventListener('load', initApp);
+
+    </script>
+</body>
+</html>
